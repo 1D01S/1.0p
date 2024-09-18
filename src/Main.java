@@ -11,7 +11,7 @@ import java.util.List;
 
 class Game extends JPanel implements MouseMotionListener, MouseWheelListener {
     private final int WIDTH = 800, HEIGHT = 600;
-    private String shapeType = "CUBE"; // Начальная фигура - Куб
+    private boolean isRotating = true; // Флаг для вращения куба
     private double angleX = 0, angleY = 0; // Угол поворота
     private double scale = 100; // Масштаб
     private double translateX = 0, translateY = 0; // Положение модели
@@ -21,6 +21,7 @@ class Game extends JPanel implements MouseMotionListener, MouseWheelListener {
     private List<int[]> faces = new ArrayList<>(); // Грань
 
     private JLabel polyCountLabel; // Для отображения количества полигонов
+    private JLabel modelSizeLabel; // Для отображения размера модели
     private JButton closeModelButton; // Кнопка закрытия модели
     private boolean dragging = false; // Переменная для отслеживания перетаскивания модели
 
@@ -29,96 +30,124 @@ class Game extends JPanel implements MouseMotionListener, MouseWheelListener {
         this.setFocusable(true);
         this.addMouseMotionListener(this);
         this.addMouseWheelListener(this);
+        initializeMouseListener();
+        initializeControlPanel();
+        initializeCube(); // Инициализация куба
+
+        // Запуск анимации вращения
+        Timer timer = new Timer(16, e -> {
+            if (isRotating) {
+                angleX += 0.01; // Увеличение угла для вращения
+                angleY += 0.01;
+                repaint();
+            }
+        });
+        timer.start();
+    }
+
+    private void initializeMouseListener() {
         this.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                if (e.getClickCount() == 2) { // Двойной клик для начала перетаскивания
+                if (e.getClickCount() == 2) {
                     lastMouseX = e.getX();
                     lastMouseY = e.getY();
-                    dragging = true; // Начинаем перетаскивание
+                    dragging = true;
                 }
             }
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                if (dragging) {
-                    dragging = false; // Завершаем перетаскивание
-                }
+                dragging = false;
             }
         });
+    }
 
+    private void initializeControlPanel() {
         JPanel controlPanel = new JPanel();
         controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.Y_AXIS));
 
-        JButton switchShapeButton = new JButton("Change Shape");
-        switchShapeButton.addActionListener(e -> {
-            switch (shapeType) {
-                case "CUBE":
-                    shapeType = "PYRAMID";
-                    break;
-                case "PYRAMID":
-                    shapeType = "TRUNCATED_PYRAMID";
-                    break;
-                case "TRUNCATED_PYRAMID":
-                    shapeType = "SPHERE";
-                    break;
-                case "SPHERE":
-                    shapeType = "CUBE";
-                    break;
-            }
-            updatePolygonCount();
-            repaint();
-        });
-
-        JButton loadModelButton = new JButton("Load 3D Model (.obj)");
-        loadModelButton.addActionListener(e -> {
-            loadModel();
-            updatePolygonCount();
-            repaint();
-        });
-
-        closeModelButton = new JButton("Close Model");
-        closeModelButton.setEnabled(false);
-        closeModelButton.addActionListener(e -> {
-            closeModel();
-        });
-
-        JButton resetButton = new JButton("Reset Model");
-        resetButton.addActionListener(e -> {
-            resetModel();
-            repaint();
-        });
+        JButton loadModelButton = createLoadModelButton();
+        closeModelButton = createCloseModelButton();
+        JButton resetButton = createResetButton();
 
         polyCountLabel = new JLabel("Polygon Count: 0");
+        modelSizeLabel = new JLabel("Model Size: 0.0");
 
-        controlPanel.add(switchShapeButton);
+        // Удалены кнопки для смены формы
         controlPanel.add(loadModelButton);
         controlPanel.add(closeModelButton);
         controlPanel.add(resetButton);
         controlPanel.add(polyCountLabel);
+        controlPanel.add(modelSizeLabel);
 
         this.setLayout(new BorderLayout());
         this.add(controlPanel, BorderLayout.EAST);
     }
 
+    private JButton createLoadModelButton() {
+        JButton loadModelButton = new JButton("Load 3D Model (.obj)");
+        loadModelButton.addActionListener(e -> {
+            loadModel();
+            repaint();
+        });
+        return loadModelButton;
+    }
+
+    private JButton createCloseModelButton() {
+        JButton closeModelButton = new JButton("Close Model");
+        closeModelButton.setEnabled(false);
+        closeModelButton.addActionListener(e -> closeModel());
+        return closeModelButton;
+    }
+
+    private JButton createResetButton() {
+        JButton resetButton = new JButton("Reset Model");
+        resetButton.addActionListener(e -> {
+            resetModel();
+            repaint();
+        });
+        return resetButton;
+    }
+
     private void closeModel() {
         vertices.clear();
         faces.clear();
-        resetModel();
-        closeModelButton.setEnabled(false); // Делаем кнопку закрытия снова недоступной
+        initializeCube(); // Возврат к кубу
+        closeModelButton.setEnabled(false);
+        updatePolygonCount();
+        updateModelSizeLabel(); // Обновляем размер модели
         repaint();
+    }
+
+    private void initializeCube() {
+        vertices.add(new double[]{-1, -1, -1});
+        vertices.add(new double[]{1, -1, -1});
+        vertices.add(new double[]{1, 1, -1});
+        vertices.add(new double[]{-1, 1, -1});
+        vertices.add(new double[]{-1, -1, 1});
+        vertices.add(new double[]{1, -1, 1});
+        vertices.add(new double[]{1, 1, 1});
+        vertices.add(new double[]{-1, 1, 1});
+
+        faces.add(new int[]{0, 1, 2, 3});
+        faces.add(new int[]{4, 5, 6, 7});
+        faces.add(new int[]{0, 1, 5, 4});
+        faces.add(new int[]{2, 3, 7, 6});
+        faces.add(new int[]{0, 3, 7, 4});
+        faces.add(new int[]{1, 2, 6, 5});
+
+        updatePolygonCount(); // Обновляем количество полигонов
+        updateModelSizeLabel(); // Обновляем размер модели
     }
 
     private void loadModel() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("OBJ files (*.obj)", "obj"));
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             File file = fileChooser.getSelectedFile();
             loadOBJ(file);
-            if (!vertices.isEmpty() && !faces.isEmpty()) {
-                closeModelButton.setEnabled(true); // Активируем кнопку после загрузки модели
-            }
+            closeModelButton.setEnabled(!vertices.isEmpty() && !faces.isEmpty());
         }
     }
 
@@ -127,32 +156,71 @@ class Game extends JPanel implements MouseMotionListener, MouseWheelListener {
         faces.clear();
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
+            double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, minZ = Double.MAX_VALUE;
+            double maxX = Double.MIN_VALUE, maxY = Double.MIN_VALUE, maxZ = Double.MIN_VALUE;
             while ((line = br.readLine()) != null) {
-                if (line.startsWith("v ")) {
-                    String[] parts = line.split("\\s+"); // Исправлено: использование корректного регулярного выражения
-                    double[] vertex = new double[3];
-                    vertex[0] = Double.parseDouble(parts[1]);
-                    vertex[1] = Double.parseDouble(parts[2]);
-                    vertex[2] = Double.parseDouble(parts[3]);
-                    vertices.add(vertex);
-                } else if (line.startsWith("f ")) {
-                    String[] parts = line.split("\\s+");
-                    int[] face = new int[parts.length - 1];
-                    for (int i = 1; i < parts.length; i++) {
-                        String[] vertexParts = parts[i].split("/");
-                        face[i - 1] = Integer.parseInt(vertexParts[0]) - 1; // Индексы начинаются с 1 в OBJ
-                    }
-                    faces.add(face);
+                processOBJLine(line);
+            }
+            // После загрузки модели определяем её размеры
+            for (double[] v : vertices) {
+                minX = Math.min(minX, v[0]);
+                minY = Math.min(minY, v[1]);
+                minZ = Math.min(minZ, v[2]);
+                maxX = Math.max(maxX, v[0]);
+                maxY = Math.max(maxY, v[1]);
+                maxZ = Math.max(maxZ, v[2]);
+            }
+            double sizeX = maxX - minX;
+            double sizeY = maxY - minY;
+            double sizeZ = maxZ - minZ;
+            double modelSize = Math.max(sizeX, Math.max(sizeY, sizeZ));
+
+            // Увеличиваем модель, если она слишком мала
+            if (modelSize < 3.0) { // 3.0 - минимум для удобного просмотра
+                double scaleFactor = 3.0 / modelSize; // Увеличиваем до размера 3.0
+                for (int i = 0; i < vertices.size(); i++) {
+                    vertices.set(i, new double[]{
+                            vertices.get(i)[0] * scaleFactor,
+                            vertices.get(i)[1] * scaleFactor,
+                            vertices.get(i)[2] * scaleFactor
+                    });
                 }
             }
+            updatePolygonCount();
+            updateModelSizeLabel(modelSize); // Обновляем текст размера модели
+
         } catch (IOException e) {
-            e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Error loading OBJ file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void processOBJLine(String line) {
+        if (line.startsWith("v ")) {
+            String[] parts = line.trim().split("\\s+");
+            vertices.add(new double[]{
+                    Double.parseDouble(parts[1]),
+                    Double.parseDouble(parts[2]),
+                    Double.parseDouble(parts[3])
+            });
+        } else if (line.startsWith("f ")) {
+            String[] parts = line.trim().split("\\s+");
+            int[] face = Arrays.stream(parts, 1, parts.length)
+                    .mapToInt(part -> Integer.parseInt(part.split("/")[0]) - 1)
+                    .toArray();
+            faces.add(face);
         }
     }
 
     private void updatePolygonCount() {
         polyCountLabel.setText("Polygon Count: " + faces.size());
+    }
+
+    private void updateModelSizeLabel() {
+        modelSizeLabel.setText("Model Size: 0.0");
+    }
+
+    private void updateModelSizeLabel(double modelSize) {
+        modelSizeLabel.setText(String.format("Model Size: %.2f", modelSize));
     }
 
     private void resetModel() {
@@ -161,186 +229,91 @@ class Game extends JPanel implements MouseMotionListener, MouseWheelListener {
         angleX = 0;
         angleY = 0;
         updatePolygonCount();
+        updateModelSizeLabel();
         repaint();
     }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        if (vertices.isEmpty() && faces.isEmpty()) {
-            switch (shapeType) {
-                case "CUBE":
-                    drawCube(g);
-                    break;
-                case "PYRAMID":
-                    drawPyramid(g);
-                    break;
-                case "TRUNCATED_PYRAMID":
-                    drawTruncatedPyramid(g);
-                    break;
-                case "SPHERE":
-                    drawSphere(g);
-                    break;
-            }
-        } else {
-            drawShape(g, vertices, faces);
-        }
-    }
-
-    // Методы для рисования фигур
-    public void drawCube(Graphics g) {
-        double[][] vertices = {
-                {-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
-                {-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1}
-        };
-
-        int[][] faces = {
-                {4, 5, 6, 7},
-                {0, 1, 2, 3},
-                {0, 1, 5, 4},
-                {2, 3, 7, 6},
-                {0, 3, 7, 4},
-                {1, 2, 6, 5}
-        };
-
         drawShape(g, vertices, faces);
-    }
-
-    public void drawPyramid(Graphics g) {
-        double[][] vertices = {
-                {0, 1, 0}, {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}
-        };
-
-        int[][] faces = {
-                {0, 1, 2}, {0, 2, 3}, {0, 3, 4}, {0, 4, 1}, {1, 2, 3, 4}
-        };
-
-        drawShape(g, vertices, faces);
-    }
-
-    public void drawTruncatedPyramid(Graphics g) {
-        double[][] vertices = {
-                {-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1},
-                {-0.5, -0.5, 0}, {0.5, -0.5, 0}, {0.5, 0.5, 0}, {-0.5, 0.5, 0}
-        };
-
-        int[][] faces = {
-                {0, 1, 2, 3},
-                {4, 5, 6, 7},
-                {0, 1, 5, 4},
-                {1, 2, 6, 5},
-                {2, 3, 7, 6},
-                {3, 0, 4, 7}
-        };
-
-        drawShape(g, vertices, faces);
-    }
-
-    public void drawSphere(Graphics g) {
-        int radius = 1;
-        int sticks = 20;
-        int slices = 20;
-
-        for (int i = 0; i < sticks; i++) {
-            double theta1 = (i * Math.PI) / sticks;
-            double theta2 = ((i + 1) * Math.PI) / sticks;
-
-            for (int j = 0; j < slices; j++) {
-                double phi1 = (j * 2 * Math.PI) / slices;
-                double phi2 = ((j + 1) * 2 * Math.PI) / slices;
-
-                double[][] vertices = {
-                        {radius * Math.sin(theta1) * Math.cos(phi1), radius * Math.cos(theta1), radius * Math.sin(theta1) * Math.sin(phi1)},
-                        {radius * Math.sin(theta1) * Math.cos(phi2), radius * Math.cos(theta1), radius * Math.sin(theta1) * Math.sin(phi2)},
-                        {radius * Math.sin(theta2) * Math.cos(phi2), radius * Math.cos(theta2), radius * Math.sin(theta2) * Math.sin(phi2)},
-                        {radius * Math.sin(theta2) * Math.cos(phi1), radius * Math.cos(theta2), radius * Math.sin(theta2) * Math.sin(phi1)}
-                };
-
-                int[][] faces = {
-                        {0, 1, 2, 3}
-                };
-
-                drawShape(g, vertices, faces);
-            }
-        }
     }
 
     private void drawShape(Graphics g, List<double[]> vertices, List<int[]> faces) {
         double[] depths = new double[faces.size()];
-        for (int i = 0; i < faces.size(); i++) {
-            depths[i] = Arrays.stream(faces.get(i)).mapToDouble(v -> vertices.get(v)[2]).average().orElse(0);
+        Integer[] order = new Integer[faces.size()];
+
+        // Расчет центра модели
+        double centerX = 0, centerY = 0, centerZ = 0;
+
+        for (double[] vertex : vertices) {
+            centerX += vertex[0];
+            centerY += vertex[1];
+            centerZ += vertex[2];
+        }
+        int vertexCount = vertices.size();
+
+        if (vertexCount > 0) {
+            centerX /= vertexCount;
+            centerY /= vertexCount;
+            centerZ /= vertexCount;
+
+            // Рисуем центр в виде красной точки, фиксированной по центру окна
+            g.setColor(Color.RED);
+            int centerXScreen = WIDTH / 2;
+            int centerYScreen = HEIGHT / 2;
+            g.fillOval(centerXScreen - 5, centerYScreen - 5, 10, 10); // Рисуем точку
         }
 
-        Integer[] order = new Integer[depths.length];
-        for (int i = 0; i < depths.length; i++) {
+        for (int i = 0; i < faces.size(); i++) {
+            depths[i] = Arrays.stream(faces.get(i)).mapToDouble(v -> vertices.get(v)[2]).average().orElse(0);
             order[i] = i;
         }
 
         Arrays.sort(order, (a, b) -> Double.compare(depths[b], depths[a]));
-
-        for (int faceIndex : order) {
-            drawFace(g, vertices, faces.get(faceIndex));
-        }
-    }
-
-    private void drawShape(Graphics g, double[][] vertices, int[][] faces) {
-        List<double[]> vertexList = new ArrayList<>();
-        for (double[] vertex : vertices) {
-            vertexList.add(vertex);
-        }
-
-        List<int[]> faceList = new ArrayList<>();
-        for (int[] face : faces) {
-            faceList.add(face);
-        }
-
-        drawShape(g, vertexList, faceList);
+        Arrays.stream(order).forEach(faceIndex -> drawFace(g, vertices, faces.get(faceIndex)));
     }
 
     private void drawFace(Graphics g, List<double[]> vertices, int[] face) {
         Polygon polygon = new Polygon();
-        int[] projX = new int[face.length];
-        int[] projY = new int[face.length];
+        for (int index : face) {
+            double[] v = vertices.get(index);
 
-        for (int i = 0; i < face.length; i++) {
-            double[] v = vertices.get(face[i]);
-            double y = v[1] * Math.cos(angleX) - v[2] * Math.sin(angleX);
-            double z = v[1] * Math.sin(angleX) + v[2] * Math.cos(angleX);
-            double x = (v[0] + translateX) * Math.cos(angleY) + z * Math.sin(angleY); // Учитываем перемещение по X
+            // Применяем смещение для центровки вращения
+            double centeredX = v[0] - translateX; // Центрируем по X
+            double centeredY = v[1];
+            double centeredZ = v[2];
 
-            projX[i] = (int) (x * scale + (double) WIDTH / 2);
-            projY[i] = (int) (-y * scale + (double) HEIGHT / 2 + translateY); // Учитываем перемещение по Y
-            polygon.addPoint(projX[i], projY[i]);
+            // Вращение вокруг X и Y
+            double y = centeredY * Math.cos(angleX) - centeredZ * Math.sin(angleX);
+            double z = centeredY * Math.sin(angleX) + centeredZ * Math.cos(angleX);
+            double x = (centeredX) * Math.cos(angleY) + z * Math.sin(angleY);
+
+            // Переводим координаты для отображения
+            polygon.addPoint((int) (x * scale + WIDTH / 2), (int) (-y * scale + HEIGHT / 2 + translateY));
         }
-
         g.setColor(Color.BLACK);
-        Graphics2D g2d = (Graphics2D) g;
-        g2d.setStroke(new BasicStroke(2));
-        g2d.drawPolygon(polygon);
+        g.drawPolygon(polygon);
     }
 
     @Override
     public void mouseDragged(MouseEvent e) {
         if (!dragging) {
-            angleX += (e.getY() - lastMouseY) * 0.01;
-            angleY += (e.getX() - lastMouseX) * 0.01;
-        } else {
-            double mouseX = (e.getX() - (double) WIDTH / 2) / scale;
-            double mouseY = (e.getY() - (double) HEIGHT / 2) / scale;
-
-            // Увеличиваем влияние на Y
-            double yMovementFactor = 100.0; // Множитель для Y, можно настроить по необходимости
-
-            // Перемещение модели
-            translateX += mouseX - (lastMouseX - (double) WIDTH / 2) / scale;
-            translateY += (mouseY - (lastMouseY - (double) HEIGHT / 2) / scale) * yMovementFactor; // Применяем множитель к Y
+            return;
         }
-
+        translateModel(e);
         lastMouseX = e.getX();
         lastMouseY = e.getY();
         repaint();
     }
 
+    private void translateModel(MouseEvent e) {
+        double mouseX = (e.getX() - (double) WIDTH / 2) / scale;
+        double mouseY = (e.getY() - (double) HEIGHT / 2) / scale;
+        double yMovementFactor = 100.0; // Множитель для Y
+        translateX += mouseX - (lastMouseX - (double) WIDTH / 2) / scale;
+        translateY += (mouseY - (lastMouseY - (double) HEIGHT / 2) / scale) * yMovementFactor;
+    }
 
     @Override
     public void mouseMoved(MouseEvent e) {
@@ -350,8 +323,7 @@ class Game extends JPanel implements MouseMotionListener, MouseWheelListener {
 
     @Override
     public void mouseWheelMoved(MouseWheelEvent e) {
-        scale += e.getWheelRotation() * 10;
-        scale = Math.max(10, scale);
+        scale = Math.max(10, scale + e.getWheelRotation() * 10);
         repaint();
     }
 
@@ -364,4 +336,6 @@ class Game extends JPanel implements MouseMotionListener, MouseWheelListener {
         frame.setVisible(true);
     }
 }
+
+
 
